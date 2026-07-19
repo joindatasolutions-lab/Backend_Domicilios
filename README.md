@@ -16,6 +16,12 @@ pip install -r requirements.txt
 
 Crear el archivo `.env` a partir de `.env.example` y configurar las variables de base de datos, JWT, CORS y S3.
 
+Para produccion, `BACKEND_CORS_ORIGINS` debe incluir el dominio del frontend:
+
+```text
+https://domiapp.joindata.com.co
+```
+
 ## Ejecutar En Local
 
 ```bash

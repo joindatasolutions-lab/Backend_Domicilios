@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     backend_cors_origins_raw: str = Field(
         default=(
             "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,"
-            "http://localhost:5174,http://127.0.0.1:5174"
+            "http://localhost:5174,http://127.0.0.1:5174,"
+            "https://domiapp.joindata.com.co"
         ),
         alias="BACKEND_CORS_ORIGINS",
     )
