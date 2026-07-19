@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     db_schema: str = "petalops"
     db_user: str
     db_password: str
+    db_connect_timeout: int = Field(default=10, alias="DB_CONNECT_TIMEOUT")
     secret_key: str = "change-this-secret-in-production"
     access_token_expire_minutes: int = 480
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")

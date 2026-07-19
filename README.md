@@ -22,6 +22,8 @@ Para produccion, `BACKEND_CORS_ORIGINS` debe incluir el dominio del frontend:
 https://domiapp.joindata.com.co
 ```
 
+En Cloud Run, si la base de datos no es accesible, los endpoints que consultan PostgreSQL devuelven `503`. Configurar `DB_CONNECT_TIMEOUT=10` para evitar esperas largas mientras se valida conectividad.
+
 ## Ejecutar En Local
 
 ```bash

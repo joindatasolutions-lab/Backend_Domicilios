@@ -8,7 +8,10 @@ from app.core.config import settings
 
 engine = create_engine(
     settings.database_url,
-    connect_args={"options": f"-csearch_path={settings.db_schema},public"},
+    connect_args={
+        "options": f"-csearch_path={settings.db_schema},public",
+        "connect_timeout": settings.db_connect_timeout,
+    },
     pool_pre_ping=True,
 )
 
