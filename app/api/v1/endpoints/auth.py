@@ -10,16 +10,23 @@ from app.schemas.auth import (
     DomiciliarioLoginRequest,
     DomiciliarioLoginResponse,
     DomiciliarioPerfilResponse,
+    TenantIdentity,
 )
 from app.services.auth import (
     actualizar_foto_domiciliario,
     login_domiciliario,
+    obtener_tenant_demo,
     obtener_perfil_domiciliario,
     subir_y_actualizar_foto_domiciliario,
 )
 
 
 router = APIRouter()
+
+
+@router.get("/domiciliarios/tenant-demo", response_model=TenantIdentity)
+def tenant_demo_domiciliarios(db: Session = Depends(get_db)) -> dict:
+    return obtener_tenant_demo(db)
 
 
 @router.post("/domiciliarios/login", response_model=DomiciliarioLoginResponse)

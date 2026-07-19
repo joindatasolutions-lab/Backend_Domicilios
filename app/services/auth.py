@@ -11,6 +11,44 @@ from app.services.storage import subir_foto_empleado
 
 INVALID_CREDENTIALS = "Usuario o contrasena invalidos"
 AMBIGUOUS_CREDENTIALS = "El usuario pertenece a varias empresas. Seleccione empresa."
+PETALOPS_DEMO_EMPRESA_ID = 2
+
+
+def _tenant_identity(row) -> dict:
+    return {
+        "empresa_id": row["empresa_id"],
+        "nombre": row["tenant_nombre"],
+        "nombre_comercial": row["tenant_nombre_comercial"],
+        "slug": row["tenant_slug"],
+        "logo_url": row["tenant_logo_url"],
+    }
+
+
+def obtener_tenant_demo(db: Session) -> dict:
+    row = db.execute(
+        text(
+            """
+            select
+                id_empresa as empresa_id,
+                nombre_empresa as tenant_nombre,
+                nombre_comercial as tenant_nombre_comercial,
+                slug as tenant_slug,
+                logo_url as tenant_logo_url
+            from empresa
+            where id_empresa = :empresa_id
+                and estado = 1
+            limit 1
+            """
+        ),
+        {"empresa_id": PETALOPS_DEMO_EMPRESA_ID},
+    ).mappings().first()
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant demo no encontrado",
+        )
+    return _tenant_identity(row)
 
 
 def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> dict:
@@ -91,13 +129,7 @@ def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> di
         "id_empleado": row["id_empleado"],
         "empresa_id": row["empresa_id"],
         "sucursal_id": row["sucursal_id"],
-        "tenant": {
-            "empresa_id": row["empresa_id"],
-            "nombre": row["tenant_nombre"],
-            "nombre_comercial": row["tenant_nombre_comercial"],
-            "slug": row["tenant_slug"],
-            "logo_url": row["tenant_logo_url"],
-        },
+        "tenant": _tenant_identity(row),
         "nombre": row["nombre"],
         "nombre_empleado": row["nombre_empleado"],
         "usuario": row["usuario"],
@@ -164,13 +196,11 @@ def obtener_perfil_domiciliario(db: Session, domiciliario: CurrentDomiciliario) 
             detail="Domiciliario no encontrado",
         )
     perfil = dict(row)
-    perfil["tenant"] = {
-        "empresa_id": perfil["empresa_id"],
-        "nombre": perfil.pop("tenant_nombre"),
-        "nombre_comercial": perfil.pop("tenant_nombre_comercial"),
-        "slug": perfil.pop("tenant_slug"),
-        "logo_url": perfil.pop("tenant_logo_url"),
-    }
+    perfil["tenant"] = _tenant_identity(perfil)
+    perfil.pop("tenant_nombre")
+    perfil.pop("tenant_nombre_comercial")
+    perfil.pop("tenant_slug")
+    perfil.pop("tenant_logo_url")
     return perfil
 
 
@@ -236,13 +266,11 @@ def actualizar_foto_domiciliario(
 
     db.commit()
     perfil = dict(row)
-    perfil["tenant"] = {
-        "empresa_id": perfil["empresa_id"],
-        "nombre": perfil.pop("tenant_nombre"),
-        "nombre_comercial": perfil.pop("tenant_nombre_comercial"),
-        "slug": perfil.pop("tenant_slug"),
-        "logo_url": perfil.pop("tenant_logo_url"),
-    }
+    perfil["tenant"] = _tenant_identity(perfil)
+    perfil.pop("tenant_nombre")
+    perfil.pop("tenant_nombre_comercial")
+    perfil.pop("tenant_slug")
+    perfil.pop("tenant_logo_url")
     return perfil
 
 
