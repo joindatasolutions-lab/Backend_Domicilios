@@ -22,7 +22,11 @@ Para produccion, `BACKEND_CORS_ORIGINS` debe incluir el dominio del frontend:
 https://domiapp.joindata.com.co
 ```
 
-En Cloud Run, si la base de datos no es accesible, los endpoints que consultan PostgreSQL devuelven `503`. Configurar `DB_CONNECT_TIMEOUT=10` para evitar esperas largas mientras se valida conectividad.
+Para pruebas desde Vite/local, `BACKEND_CORS_ORIGIN_REGEX` permite `localhost` y `127.0.0.1` en cualquier puerto. Si se desactiva ese regex en Cloud Run, agregar tambien el origen local exacto a `BACKEND_CORS_ORIGINS`, por ejemplo `http://127.0.0.1:5174`.
+
+En Cloud Run, si la base de datos no es accesible, los endpoints que consultan PostgreSQL devuelven `503`. Configurar `DB_CONNECT_TIMEOUT=3` para evitar esperas largas mientras se valida conectividad.
+
+Si PostgreSQL esta en Cloud SQL, configurar `DB_CLOUD_SQL_INSTANCE` con el formato `project:region:instance` y desplegar Cloud Run con la instancia adjunta. En ese modo la app conecta por socket Unix en `/cloudsql/...` y no usa la IP publica de `DB_HOST`.
 
 ## Ejecutar En Local
 

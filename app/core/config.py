@@ -2,6 +2,7 @@ from functools import cached_property
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 
 class Settings(BaseSettings):
@@ -17,14 +18,23 @@ class Settings(BaseSettings):
         ),
         alias="BACKEND_CORS_ORIGINS",
     )
+    backend_cors_origin_regex: str | None = Field(
+        default=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+        alias="BACKEND_CORS_ORIGIN_REGEX",
+    )
 
-    db_host: str
+    db_host: str = "localhost"
     db_port: int = 5432
     db_name: str
     db_schema: str = "petalops"
     db_user: str
     db_password: str
-    db_connect_timeout: int = Field(default=10, alias="DB_CONNECT_TIMEOUT")
+    db_cloud_sql_instance: str | None = Field(default=None, alias="DB_CLOUD_SQL_INSTANCE")
+    db_connect_timeout: int = Field(default=3, alias="DB_CONNECT_TIMEOUT")
+    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=2, alias="DB_MAX_OVERFLOW")
+    db_pool_recycle: int = Field(default=1800, alias="DB_POOL_RECYCLE")
+    db_pool_timeout: int = Field(default=30, alias="DB_POOL_TIMEOUT")
     secret_key: str = "change-this-secret-in-production"
     access_token_expire_minutes: int = 480
     aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
@@ -54,11 +64,32 @@ class Settings(BaseSettings):
 
     @computed_field
     @cached_property
-    def database_url(self) -> str:
-        return (
-            f"postgresql+psycopg://{self.db_user}:{self.db_password}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+    def database_url(self) -> URL:
+        if self.db_cloud_sql_instance:
+            return URL.create(
+                "postgresql+psycopg",
+                username=self.db_user,
+                password=self.db_password,
+                database=self.db_name,
+                query={"host": f"/cloudsql/{self.db_cloud_sql_instance}"},
+            )
+
+        return URL.create(
+            "postgresql+psycopg",
+            username=self.db_user,
+            password=self.db_password,
+            host=self.db_host,
+            port=self.db_port,
+            database=self.db_name,
         )
+
+    @computed_field
+    @cached_property
+    def database_connection_target(self) -> str:
+        if self.db_cloud_sql_instance:
+            return f"cloudsql:/cloudsql/{self.db_cloud_sql_instance}"
+
+        return f"tcp:{self.db_host}:{self.db_port}"
 
 
 settings = Settings()

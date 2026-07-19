@@ -1,8 +1,11 @@
+import logging
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.core.security import CurrentDomiciliario
 from app.schemas.auth import DomiciliarioLoginRequest
@@ -11,6 +14,7 @@ from app.services.storage import subir_foto_empleado
 
 INVALID_CREDENTIALS = "Usuario o contrasena invalidos"
 AMBIGUOUS_CREDENTIALS = "El usuario pertenece a varias empresas. Seleccione empresa."
+logger = logging.getLogger(__name__)
 
 
 def _tenant_identity(row) -> dict:
@@ -69,6 +73,10 @@ def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> di
             },
         ).mappings().all()
     except SQLAlchemyError as exc:
+        logger.exception(
+            "Database query failed during domiciliario login for target %s",
+            settings.database_connection_target,
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="No se pudo conectar con la base de datos",

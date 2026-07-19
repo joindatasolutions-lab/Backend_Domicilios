@@ -12,6 +12,20 @@ def test_login_domiciliario_validates_payload() -> None:
     assert response.status_code == 422
 
 
+def test_login_preflight_allows_local_vite_origin() -> None:
+    response = client.options(
+        "/api/v1/auth/domiciliarios/login",
+        headers={
+            "Origin": "http://127.0.0.1:5174",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5174"
+
+
 def test_perfil_domiciliario_requires_token() -> None:
     response = client.get("/api/v1/auth/domiciliarios/me")
 
