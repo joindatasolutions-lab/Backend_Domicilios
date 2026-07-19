@@ -42,26 +42,6 @@ El login de domiciliarios usa la tabla `usuario` para autenticar y luego se une 
 
 El frontend no necesita enviar `empresa_id` ni `sucursal_id` en el login inicial. El backend infiere el tenant desde el usuario autenticado.
 
-Para la pantalla inicial de login, antes de autenticar, el frontend puede cargar la identidad demo de PetalOps:
-
-```text
-GET /api/v1/auth/domiciliarios/tenant-demo
-```
-
-Respuesta:
-
-```json
-{
-  "empresa_id": 2,
-  "nombre": "Petalops",
-  "nombre_comercial": "Petalops",
-  "slug": "petalops",
-  "logo_url": "https://ddy2osi8uorg4.cloudfront.net/tenants/petalops/logos/PetalOps+Logo.png"
-}
-```
-
-Ese `logo_url` se debe usar para pintar el logo en el inicio de sesion.
-
 Endpoint:
 
 ```text
@@ -202,7 +182,6 @@ AWS_S3_OBJECT_ACL
 Autenticacion:
 
 ```text
-GET /api/v1/auth/domiciliarios/tenant-demo
 POST /api/v1/auth/domiciliarios/login
 GET /api/v1/auth/domiciliarios/me
 PATCH /api/v1/auth/domiciliarios/me/foto

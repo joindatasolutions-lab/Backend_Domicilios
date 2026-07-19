@@ -11,7 +11,6 @@ from app.services.storage import subir_foto_empleado
 
 INVALID_CREDENTIALS = "Usuario o contrasena invalidos"
 AMBIGUOUS_CREDENTIALS = "El usuario pertenece a varias empresas. Seleccione empresa."
-PETALOPS_DEMO_EMPRESA_ID = 2
 
 
 def _tenant_identity(row) -> dict:
@@ -22,33 +21,6 @@ def _tenant_identity(row) -> dict:
         "slug": row["tenant_slug"],
         "logo_url": row["tenant_logo_url"],
     }
-
-
-def obtener_tenant_demo(db: Session) -> dict:
-    row = db.execute(
-        text(
-            """
-            select
-                id_empresa as empresa_id,
-                nombre_empresa as tenant_nombre,
-                nombre_comercial as tenant_nombre_comercial,
-                slug as tenant_slug,
-                logo_url as tenant_logo_url
-            from empresa
-            where id_empresa = :empresa_id
-                and estado = 1
-            limit 1
-            """
-        ),
-        {"empresa_id": PETALOPS_DEMO_EMPRESA_ID},
-    ).mappings().first()
-
-    if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant demo no encontrado",
-        )
-    return _tenant_identity(row)
 
 
 def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> dict:

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 
-class TenantIdentity(BaseModel):
+class TenantData(BaseModel):
     empresa_id: int
     nombre: str
     nombre_comercial: str | None = None
@@ -20,7 +20,7 @@ class DomiciliarioAuthData(BaseModel):
     id_empleado: int
     empresa_id: int
     sucursal_id: int | None
-    tenant: TenantIdentity | None = None
+    tenant: TenantData | None = None
     nombre: str | None = None
     nombre_empleado: str
     usuario: str | None
