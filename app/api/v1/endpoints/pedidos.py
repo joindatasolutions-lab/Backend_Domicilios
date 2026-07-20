@@ -1,5 +1,6 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -14,6 +15,10 @@ from app.schemas.pedidos import (
     PedidoDevueltoResponse,
     PedidoDisponible,
     PedidoEstadoResponse,
+    PedidoHistorial,
+    PedidoNovedadItem,
+    PedidoNovedadResolverRequest,
+    PedidoNovedadResolverResponse,
     PedidoNoEntregadoRequest,
     PedidoNovedadRequest,
 )
@@ -22,9 +27,13 @@ from app.services.pedidos import (
     devolver_pedido_asignado,
     entregar_pedido,
     iniciar_entrega_pedido,
+    listar_historial_pedidos,
+    listar_novedades_pedidos,
     listar_pedidos_asignados,
     listar_pedidos_disponibles,
     marcar_pedido_no_entregado,
+    registrar_novedad_operativa,
+    resolver_novedad_pedido,
 )
 
 
@@ -38,6 +47,19 @@ TIPOS_NOVEDAD = {
     "arreglo_danado": "Arreglo danado",
     "otra_novedad": "Otra novedad",
 }
+
+
+def _rango_periodo(periodo: Literal["hoy", "semana", "mes", "anio", "todos"]) -> tuple[date | None, date | None]:
+    hoy = today_local()
+    if periodo == "hoy":
+        return hoy, hoy
+    if periodo == "semana":
+        return hoy - timedelta(days=hoy.weekday()), hoy
+    if periodo == "mes":
+        return hoy.replace(day=1), hoy
+    if periodo == "anio":
+        return hoy.replace(month=1, day=1), hoy
+    return None, None
 
 
 @router.get("/disponibles", response_model=list[PedidoDisponible])
@@ -82,6 +104,123 @@ def pedidos_asignados(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/historial", response_model=list[PedidoHistorial])
+def historial_pedidos(
+    domiciliario: Annotated[CurrentDomiciliario, Depends(get_current_domiciliario)],
+    periodo: Annotated[
+        Literal["hoy", "semana", "mes", "anio", "todos"],
+        Query(description="Filtro rapido: hoy, semana, mes, anio o todos."),
+    ] = "hoy",
+    q: Annotated[
+        str | None,
+        Query(description="Busqueda por numero de pedido, cliente o arreglo.", max_length=120),
+    ] = None,
+    limit: Annotated[int, Query(gt=0, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    fecha_desde, fecha_hasta = _rango_periodo(periodo)
+
+    return listar_historial_pedidos(
+        db,
+        domiciliario=domiciliario,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/novedades", response_model=list[PedidoNovedadItem])
+def novedades_pedidos(
+    domiciliario: Annotated[CurrentDomiciliario, Depends(get_current_domiciliario)],
+    estado: Annotated[
+        Literal["abierta", "resuelta", "todas"],
+        Query(description="Estado de la novedad: abierta, resuelta o todas."),
+    ] = "abierta",
+    periodo: Annotated[
+        Literal["hoy", "semana", "mes", "anio", "todos"],
+        Query(description="Filtro rapido: hoy, semana, mes, anio o todos."),
+    ] = "hoy",
+    q: Annotated[
+        str | None,
+        Query(description="Busqueda por numero de pedido, cliente o arreglo.", max_length=120),
+    ] = None,
+    limit: Annotated[int, Query(gt=0, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    fecha_desde, fecha_hasta = _rango_periodo(periodo)
+    return listar_novedades_pedidos(
+        db,
+        domiciliario=domiciliario,
+        estado=estado,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/{numero_pedido}/novedades", response_model=list[PedidoNovedadItem])
+def novedades_pedido_detalle(
+    numero_pedido: int,
+    domiciliario: Annotated[CurrentDomiciliario, Depends(get_current_domiciliario)],
+    estado: Annotated[
+        Literal["abierta", "resuelta", "todas"],
+        Query(description="Estado de la novedad: abierta, resuelta o todas."),
+    ] = "todas",
+    limit: Annotated[int, Query(gt=0, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return listar_novedades_pedidos(
+        db,
+        domiciliario=domiciliario,
+        estado=estado,
+        numero_pedido=numero_pedido,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post("/{numero_pedido}/novedades/{id_novedad}/resolver", response_model=PedidoNovedadResolverResponse)
+def resolver_novedad(
+    numero_pedido: int,
+    id_novedad: int,
+    payload: PedidoNovedadResolverRequest,
+    domiciliario: Annotated[CurrentDomiciliario, Depends(get_current_domiciliario)],
+    db: Session = Depends(get_db),
+) -> dict:
+    resultado = resolver_novedad_pedido(
+        db,
+        numero_pedido=numero_pedido,
+        id_novedad=id_novedad,
+        domiciliario=domiciliario,
+        solucion=payload.solucion,
+        observaciones=payload.observaciones,
+        nuevo_estado_pedido=payload.nuevo_estado_pedido,
+        evidencia_foto_url=payload.evidencia_foto_url,
+        firma_nombre=payload.firma_nombre,
+        firma_documento=payload.firma_documento,
+        firma_imagen_url=payload.firma_imagen_url,
+    )
+
+    if resultado["status"] == "not_found":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=resultado["message"],
+        )
+    if resultado["status"] == "invalid_transition":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=resultado["message"],
+        )
+    return resultado
 
 
 @router.post("/{numero_pedido}/asignarme", response_model=PedidoAsignadoResponse)
@@ -283,4 +422,15 @@ def reportar_novedad(
             status_code=status.HTTP_409_CONFLICT,
             detail=resultado["message"],
         )
+    novedad = registrar_novedad_operativa(
+        db,
+        resultado_estado=resultado,
+        domiciliario=domiciliario,
+        tipo_novedad=payload.tipo_novedad,
+        motivo=motivo,
+        descripcion=payload.descripcion,
+        evidencia_foto_url=payload.evidencia_foto_url,
+    )
+    resultado["id_novedad"] = novedad["id_novedad"]
+    resultado["estado_novedad"] = novedad["estado"]
     return resultado

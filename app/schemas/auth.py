@@ -41,3 +41,55 @@ class DomiciliarioFotoRequest(BaseModel):
 
 class DomiciliarioPerfilResponse(DomiciliarioAuthData):
     pass
+
+
+class DomiciliarioPerfilMetricas(BaseModel):
+    entregas_hoy: int
+    efectividad: float | None = None
+    calificacion: float | None = None
+
+
+class DomiciliarioPerfilVehiculo(BaseModel):
+    tipo: str | None = None
+    placa: str | None = None
+    sucursal_id: int | None = None
+    sucursal_nombre: str | None = None
+
+
+class DomiciliarioPerfilHomeResponse(BaseModel):
+    domiciliario: DomiciliarioAuthData
+    metricas: DomiciliarioPerfilMetricas
+    vehiculo: DomiciliarioPerfilVehiculo
+
+
+class DomiciliarioDesempenoResponse(BaseModel):
+    periodo: str
+    total_gestionados: int
+    entregados: int
+    con_novedad: int
+    reasignados: int
+    efectividad: float | None = None
+    calificacion: float | None = None
+
+
+class DomiciliarioDocumentoItem(BaseModel):
+    tipo: str
+    nombre: str
+    estado: str
+    numero: str | None = None
+    url: str | None = None
+    vence_en: str | None = None
+
+
+class DomiciliarioDocumentosResponse(BaseModel):
+    documentos: list[DomiciliarioDocumentoItem]
+
+
+class DomiciliarioVehiculoResponse(DomiciliarioPerfilVehiculo):
+    estado: str | None = None
+
+
+class DomiciliarioSoporteResponse(BaseModel):
+    mensaje: str
+    telefono_sucursal: str | None = None
+    email: str | None = None

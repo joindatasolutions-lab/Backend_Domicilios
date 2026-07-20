@@ -30,6 +30,33 @@ def test_pedidos_asignados_requires_token() -> None:
     assert response.status_code == 401
 
 
+def test_historial_pedidos_requires_token() -> None:
+    response = client.get("/api/v1/pedidos/historial")
+
+    assert response.status_code == 401
+
+
+def test_novedades_pedidos_requires_token() -> None:
+    response = client.get("/api/v1/pedidos/novedades")
+
+    assert response.status_code == 401
+
+
+def test_novedades_pedido_detalle_requires_token() -> None:
+    response = client.get("/api/v1/pedidos/96650/novedades")
+
+    assert response.status_code == 401
+
+
+def test_resolver_novedad_requires_token() -> None:
+    response = client.post(
+        "/api/v1/pedidos/96650/novedades/1/resolver",
+        json={"solucion": "Cliente contactado"},
+    )
+
+    assert response.status_code == 401
+
+
 def test_devolver_requires_token() -> None:
     response = client.post("/api/v1/pedidos/96650/devolver")
 

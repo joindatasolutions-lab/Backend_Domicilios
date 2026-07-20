@@ -32,6 +32,36 @@ def test_perfil_domiciliario_requires_token() -> None:
     assert response.status_code == 401
 
 
+def test_perfil_home_domiciliario_requires_token() -> None:
+    response = client.get("/api/v1/auth/domiciliarios/me/perfil")
+
+    assert response.status_code == 401
+
+
+def test_desempeno_domiciliario_requires_token() -> None:
+    response = client.get("/api/v1/auth/domiciliarios/me/desempeno")
+
+    assert response.status_code == 401
+
+
+def test_documentos_domiciliario_requires_token() -> None:
+    response = client.get("/api/v1/auth/domiciliarios/me/documentos")
+
+    assert response.status_code == 401
+
+
+def test_vehiculo_domiciliario_requires_token() -> None:
+    response = client.get("/api/v1/auth/domiciliarios/me/vehiculo")
+
+    assert response.status_code == 401
+
+
+def test_soporte_domiciliario_requires_token() -> None:
+    response = client.get("/api/v1/auth/domiciliarios/me/soporte")
+
+    assert response.status_code == 401
+
+
 def test_actualizar_foto_domiciliario_requires_token() -> None:
     response = client.patch(
         "/api/v1/auth/domiciliarios/me/foto",

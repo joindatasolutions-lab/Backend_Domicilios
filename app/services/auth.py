@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
@@ -182,6 +183,215 @@ def obtener_perfil_domiciliario(db: Session, domiciliario: CurrentDomiciliario) 
     perfil.pop("tenant_slug")
     perfil.pop("tenant_logo_url")
     return perfil
+
+
+def _calcular_metricas_domiciliario(
+    db: Session,
+    domiciliario: CurrentDomiciliario,
+    *,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+) -> dict:
+    row = db.execute(
+        text(
+            """
+            select
+                count(*) filter (where ee.codigo in ('entregado', 'no_entregado')) as total_gestionados,
+                count(*) filter (where ee.codigo = 'entregado') as entregados,
+                count(*) filter (where ee.codigo = 'no_entregado') as con_novedad
+            from entrega e
+            join pedido p
+                on p.id_pedido = e.pedido_id
+                and p.empresa_id = e.empresa_id
+            join estado_entrega ee
+                on ee.id_estado_entrega = e.estadoentregaid
+            where e.empresa_id = :empresa_id
+                and e.domiciliarioid = :domiciliario_id
+                and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
+                and (
+                    cast(:fecha_desde as date) is null
+                    or coalesce(e.fechaentrega, e.updatedat, e.fechaasignacion, e.createdat)::date >= cast(:fecha_desde as date)
+                )
+                and (
+                    cast(:fecha_hasta as date) is null
+                    or coalesce(e.fechaentrega, e.updatedat, e.fechaasignacion, e.createdat)::date <= cast(:fecha_hasta as date)
+                )
+            """
+        ),
+        {
+            "empresa_id": domiciliario.empresa_id,
+            "domiciliario_id": domiciliario.id_empleado,
+            "sucursal_id": domiciliario.sucursal_id,
+            "fecha_desde": fecha_desde,
+            "fecha_hasta": fecha_hasta,
+        },
+    ).mappings().one()
+    total = int(row["total_gestionados"] or 0)
+    entregados = int(row["entregados"] or 0)
+    con_novedad = int(row["con_novedad"] or 0)
+    efectividad = round((entregados / total) * 100, 2) if total else None
+    return {
+        "total_gestionados": total,
+        "entregados": entregados,
+        "con_novedad": con_novedad,
+        "efectividad": efectividad,
+        "calificacion": None,
+    }
+
+
+def _obtener_vehiculo_domiciliario(db: Session, domiciliario: CurrentDomiciliario) -> dict:
+    row = db.execute(
+        text(
+            """
+            select
+                e.sucursal_id,
+                s.nombre_sucursal as sucursal_nombre
+            from empleado e
+            left join sucursal s
+                on s.id_sucursal = e.sucursal_id
+                and s.empresa_id = e.empresa_id
+            where e.id_empleado = :id_empleado
+                and e.empresa_id = :empresa_id
+            limit 1
+            """
+        ),
+        {
+            "id_empleado": domiciliario.id_empleado,
+            "empresa_id": domiciliario.empresa_id,
+        },
+    ).mappings().one_or_none()
+    return {
+        "tipo": "Moto",
+        "placa": None,
+        "sucursal_id": row["sucursal_id"] if row else domiciliario.sucursal_id,
+        "sucursal_nombre": row["sucursal_nombre"] if row else None,
+    }
+
+
+def obtener_perfil_home_domiciliario(db: Session, domiciliario: CurrentDomiciliario, fecha_hoy: date) -> dict:
+    perfil = obtener_perfil_domiciliario(db, domiciliario)
+    metricas_hoy = _calcular_metricas_domiciliario(
+        db,
+        domiciliario,
+        fecha_desde=fecha_hoy,
+        fecha_hasta=fecha_hoy,
+    )
+    return {
+        "domiciliario": perfil,
+        "metricas": {
+            "entregas_hoy": metricas_hoy["entregados"],
+            "efectividad": metricas_hoy["efectividad"],
+            "calificacion": metricas_hoy["calificacion"],
+        },
+        "vehiculo": _obtener_vehiculo_domiciliario(db, domiciliario),
+    }
+
+
+def obtener_desempeno_domiciliario(
+    db: Session,
+    domiciliario: CurrentDomiciliario,
+    *,
+    periodo: str,
+    fecha_desde: date | None,
+    fecha_hasta: date | None,
+) -> dict:
+    metricas = _calcular_metricas_domiciliario(
+        db,
+        domiciliario,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+    )
+    reasignados = db.execute(
+        text(
+            """
+            select count(*)
+            from domicilio_auditoria
+            where empresa_id = :empresa_id
+                and domiciliario_id = :domiciliario_id
+                and accion = 'DEVOLVER_DOMICILIO'
+                and (cast(:fecha_desde as date) is null or created_at::date >= cast(:fecha_desde as date))
+                and (cast(:fecha_hasta as date) is null or created_at::date <= cast(:fecha_hasta as date))
+            """
+        ),
+        {
+            "empresa_id": domiciliario.empresa_id,
+            "domiciliario_id": domiciliario.id_empleado,
+            "fecha_desde": fecha_desde,
+            "fecha_hasta": fecha_hasta,
+        },
+    ).scalar_one()
+    return {
+        "periodo": periodo,
+        "total_gestionados": metricas["total_gestionados"],
+        "entregados": metricas["entregados"],
+        "con_novedad": metricas["con_novedad"],
+        "reasignados": int(reasignados or 0),
+        "efectividad": metricas["efectividad"],
+        "calificacion": metricas["calificacion"],
+    }
+
+
+def obtener_documentos_domiciliario(db: Session, domiciliario: CurrentDomiciliario) -> dict:
+    identificacion = db.execute(
+        text(
+            """
+            select identificacion
+            from empleado
+            where id_empleado = :id_empleado
+                and empresa_id = :empresa_id
+            limit 1
+            """
+        ),
+        {
+            "id_empleado": domiciliario.id_empleado,
+            "empresa_id": domiciliario.empresa_id,
+        },
+    ).scalar_one_or_none()
+    documentos = []
+    if identificacion:
+        documentos.append(
+            {
+                "tipo": "identificacion",
+                "nombre": "Identificacion",
+                "estado": "registrado",
+                "numero": identificacion,
+                "url": None,
+                "vence_en": None,
+            }
+        )
+    return {"documentos": documentos}
+
+
+def obtener_vehiculo_perfil(db: Session, domiciliario: CurrentDomiciliario) -> dict:
+    vehiculo = _obtener_vehiculo_domiciliario(db, domiciliario)
+    vehiculo["estado"] = "activo"
+    return vehiculo
+
+
+def obtener_soporte_domiciliario(db: Session, domiciliario: CurrentDomiciliario) -> dict:
+    row = db.execute(
+        text(
+            """
+            select s.telefono
+            from empleado e
+            left join sucursal s
+                on s.id_sucursal = e.sucursal_id
+                and s.empresa_id = e.empresa_id
+            where e.id_empleado = :id_empleado
+                and e.empresa_id = :empresa_id
+            limit 1
+            """
+        ),
+        {
+            "id_empleado": domiciliario.id_empleado,
+            "empresa_id": domiciliario.empresa_id,
+        },
+    ).mappings().one_or_none()
+    return {
+        "mensaje": "Contacta a tu sucursal o al administrador para soporte operativo.",
+        "telefono_sucursal": row["telefono"] if row else None,
+        "email": None,
+    }
 
 
 def actualizar_foto_domiciliario(
