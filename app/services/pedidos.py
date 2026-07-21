@@ -204,10 +204,13 @@ def listar_pedidos_disponibles(
             and ps.sucursal_id = pd.sucursal_id
         join estado_entrega ee
             on ee.id_estado_entrega = e.estadoentregaid
+        join estado_pedido ep
+            on ep.id_estado_pedido = p.estado_pedido_id
         where e.empresa_id = :empresa_id
             and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
             and e.domiciliarioid is null
             and ee.codigo = 'pendiente'
+            and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
             and coalesce(e.fechaentregaprogramada, e.fechaentrega)::date = :fecha
             and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
@@ -609,7 +612,7 @@ def listar_novedades_pedidos(
         r"""
         with novedades as (
             select
-                da.id_audit as id_novedad,
+                dn.id_novedad,
                 p.numero_pedido,
                 e.destinatario as cliente,
                 e.destinatario,
@@ -623,32 +626,29 @@ def listar_novedades_pedidos(
                 e.direccion,
                 coalesce(e.barrionombre, b.nombre_barrio) as barrio,
                 b.zona_id::text as zona,
-                coalesce(da.detalle_json::jsonb ->> 'tipo_novedad', da.accion) as tipo_novedad,
-                coalesce(da.detalle_json::jsonb ->> 'descripcion', e.observaciones) as descripcion,
-                coalesce(da.detalle_json::jsonb ->> 'motivo', e.motivonoentregado) as motivo,
+                dn.tipo_novedad,
+                coalesce(dn.descripcion, e.observaciones) as descripcion,
+                coalesce(dn.motivo, e.motivonoentregado) as motivo,
                 da.detalle_json,
-                coalesce(da.detalle_json::jsonb ->> 'evidencia_foto_url', e.evidenciafotourl) as evidencia_foto_url,
-                case
-                    when ee.codigo = 'no_entregado' then 'abierta'
-                    else 'resuelta'
-                end as estado_novedad,
+                coalesce(dn.evidencia_foto_url, e.evidenciafotourl) as evidencia_foto_url,
+                dn.estado as estado_novedad,
                 ee.codigo as estado_pedido,
-                da.created_at as reportada_en,
-                case
-                    when ee.codigo = 'no_entregado' then null
-                    else coalesce(e.updatedat, e.fechaentrega)
-                end as resuelta_en,
-                ee.codigo = 'no_entregado' as puede_reintentar,
+                dn.reportada_en,
+                dn.resuelta_en,
+                dn.estado = 'abierta' and ee.codigo = 'no_entregado' as puede_reintentar,
                 nullif(e.telefonodestino, '') is not null as puede_contactar_cliente
-            from domicilio_auditoria da
+            from domicilio_novedad dn
             join entrega e
-                on e.id_entrega = da.entrega_id
-                and e.empresa_id = da.empresa_id
+                on e.id_entrega = dn.entrega_id
+                and e.empresa_id = dn.empresa_id
             join pedido p
-                on p.id_pedido = da.pedido_id
-                and p.empresa_id = da.empresa_id
+                on p.id_pedido = dn.pedido_id
+                and p.empresa_id = dn.empresa_id
             join estado_entrega ee
                 on ee.id_estado_entrega = e.estadoentregaid
+            left join domicilio_auditoria da
+                on da.id_audit = dn.auditoria_reporte_id
+                and da.empresa_id = dn.empresa_id
             left join barrio b
                 on b.id_barrio = e.barrioid
                 and b.empresa_id = e.empresa_id
@@ -661,19 +661,14 @@ def listar_novedades_pedidos(
             left join producto_sucursal ps
                 on ps.producto_id = pd.producto_id
                 and ps.sucursal_id = pd.sucursal_id
-            where da.empresa_id = :empresa_id
-                and da.domiciliario_id = :domiciliario_id
+            where dn.empresa_id = :empresa_id
+                and dn.domiciliario_id = :domiciliario_id
                 and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
                 and (cast(:numero_pedido as bigint) is null or p.numero_pedido = cast(:numero_pedido as bigint))
-                and (
-                    da.accion = 'MARCAR_NO_ENTREGADO'
-                    or da.estado_nuevo = 'no_entregado'
-                    or da.detalle_json::jsonb ? 'tipo_novedad'
-                )
                 and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
                 and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             group by
-                da.id_audit,
+                dn.id_novedad,
                 p.id_pedido,
                 p.numero_pedido,
                 e.id_entrega,
@@ -684,13 +679,16 @@ def listar_novedades_pedidos(
                 b.nombre_barrio,
                 b.zona_id,
                 da.detalle_json,
-                da.accion,
-                da.created_at,
+                dn.tipo_novedad,
+                dn.descripcion,
+                dn.motivo,
+                dn.evidencia_foto_url,
+                dn.estado,
+                dn.reportada_en,
+                dn.resuelta_en,
                 e.observaciones,
                 e.motivonoentregado,
                 e.evidenciafotourl,
-                e.updatedat,
-                e.fechaentrega,
                 ee.codigo
         )
         select *
@@ -849,10 +847,17 @@ def resolver_novedad_pedido(
             join estado_entrega ee
                 on ee.id_estado_entrega = e.estadoentregaid
             where dn.empresa_id = :empresa_id
-                and dn.id_novedad = :id_novedad
+                and (
+                    dn.id_novedad = :id_novedad
+                    or dn.auditoria_reporte_id = :id_novedad
+                )
                 and p.numero_pedido = :numero_pedido
                 and dn.domiciliario_id = :domiciliario_id
                 and (cast(:sucursal_id as bigint) is null or dn.sucursal_id = cast(:sucursal_id as bigint))
+            order by
+                case when dn.id_novedad = :id_novedad then 0 else 1 end,
+                dn.id_novedad desc
+            limit 1
             for update of dn, e
             """
         ),
@@ -877,6 +882,7 @@ def resolver_novedad_pedido(
             "message": "La novedad ya fue resuelta o cancelada",
         }
 
+    id_novedad_resuelta = novedad["id_novedad"]
     estado_final = nuevo_estado_pedido or novedad["estado_actual"]
     update_entrega_sql = "updatedat = timezone('America/Bogota', now())"
     update_entrega_params: dict = {
@@ -989,6 +995,7 @@ def resolver_novedad_pedido(
             "detalle_json": json.dumps(
                 {
                     "id_novedad": id_novedad,
+                    "id_novedad_resuelta": id_novedad_resuelta,
                     "numero_pedido": numero_pedido,
                     "solucion": solucion,
                     "observaciones": observaciones,
@@ -1019,7 +1026,7 @@ def resolver_novedad_pedido(
             """
         ),
         {
-            "id_novedad": id_novedad,
+            "id_novedad": id_novedad_resuelta,
             "resuelta_por_login": domiciliario.usuario,
             "resuelta_por_empleado_id": domiciliario.id_empleado,
             "solucion": solucion,
@@ -1033,7 +1040,7 @@ def resolver_novedad_pedido(
     return {
         "status": "ok",
         "numero_pedido": numero_pedido,
-        "id_novedad": id_novedad,
+        "id_novedad": id_novedad_resuelta,
         "estado_novedad": "resuelta",
         "estado_pedido": estado_final,
         "resuelta_en": resuelta["resuelta_en"],
@@ -1072,11 +1079,14 @@ def asignar_pedido_a_domiciliario(
                 and e.empresa_id = p.empresa_id
             join estado_entrega ee
                 on ee.id_estado_entrega = e.estadoentregaid
+            join estado_pedido ep
+                on ep.id_estado_pedido = p.estado_pedido_id
             where p.empresa_id = :empresa_id
                 and p.numero_pedido = :numero_pedido
                 and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
                 and e.domiciliarioid is null
                 and ee.codigo = 'pendiente'
+                and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
                 and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
                 and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             for update of e
