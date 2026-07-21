@@ -334,7 +334,7 @@ def listar_pedidos_asignados(
         where e.empresa_id = :empresa_id
             and e.domiciliarioid = :domiciliario_id
             and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
-            and ee.codigo in ('asignado', 'en_ruta', 'entregado', 'no_entregado')
+            and ee.codigo in ('asignado', 'en_ruta')
             and coalesce(e.fechaentregaprogramada, e.fechaentrega)::date = :fecha
             and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
