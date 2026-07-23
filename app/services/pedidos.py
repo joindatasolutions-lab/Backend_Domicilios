@@ -72,10 +72,13 @@ def _buscar_pedido_domiciliario_para_estado(
                     and e.empresa_id = p.empresa_id
                 join estado_entrega ee
                     on ee.id_estado_entrega = e.estadoentregaid
+                join estado_pedido ep
+                    on ep.id_estado_pedido = p.estado_pedido_id
                 where p.empresa_id = :empresa_id
                     and p.numero_pedido = :numero_pedido
                     and e.domiciliarioid = :domiciliario_id
                     and ee.codigo = :estado_origen
+                    and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
                     and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
                 for update of e
                 """
@@ -208,6 +211,7 @@ def listar_pedidos_disponibles(
             on ep.id_estado_pedido = p.estado_pedido_id
         where e.empresa_id = :empresa_id
             and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
+            and p.numero_pedido is not null
             and e.domiciliarioid is null
             and ee.codigo = 'pendiente'
             and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
@@ -276,7 +280,20 @@ def listar_pedidos_asignados(
                 e.rangohora,
                 to_char(coalesce(e.fechaentregaprogramada, e.fechaentrega), 'HH24:MI')
             ) as hora_entrega,
-            coalesce(e.fechaentregaprogramada, e.fechaentrega)::date as fecha_entrega,
+            (
+                case
+                    when ee.codigo = 'entregado'
+                        then coalesce(
+                            e.fechaentrega::date + nullif(e.fechaentrega::time, time '00:00'),
+                            de.entregado_en,
+                            e.updatedat,
+                            e.fechaasignacion,
+                            e.createdat,
+                            e.fechaentregaprogramada
+                        )
+                    else coalesce(e.fechaentregaprogramada, e.fechaentrega)
+                end
+            )::date as fecha_entrega,
             ee.codigo as estado_entrega,
             coalesce(e.fechaasignacion, da.asignado_en) as asignado_en,
             e.fechasalida as en_ruta_en,
@@ -305,6 +322,8 @@ def listar_pedidos_asignados(
             and p.empresa_id = e.empresa_id
         join estado_entrega ee
             on ee.id_estado_entrega = e.estadoentregaid
+        join estado_pedido ep
+            on ep.id_estado_pedido = p.estado_pedido_id
         left join barrio b
             on b.id_barrio = e.barrioid
             and b.empresa_id = e.empresa_id
@@ -334,8 +353,22 @@ def listar_pedidos_asignados(
         where e.empresa_id = :empresa_id
             and e.domiciliarioid = :domiciliario_id
             and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
-            and ee.codigo in ('asignado', 'en_ruta')
-            and coalesce(e.fechaentregaprogramada, e.fechaentrega)::date = :fecha
+            and ee.codigo in ('asignado', 'en_ruta', 'entregado')
+            and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
+            and (
+                case
+                    when ee.codigo = 'entregado'
+                        then coalesce(
+                            e.fechaentrega::date + nullif(e.fechaentrega::time, time '00:00'),
+                            de.entregado_en,
+                            e.updatedat,
+                            e.fechaasignacion,
+                            e.createdat,
+                            e.fechaentregaprogramada
+                        )
+                    else coalesce(e.fechaentregaprogramada, e.fechaentrega)
+                end
+            )::date = :fecha
             and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
         group by
@@ -353,6 +386,8 @@ def listar_pedidos_asignados(
             e.fechaentrega,
             e.fechaasignacion,
             e.fechasalida,
+            e.updatedat,
+            e.createdat,
             da.asignado_en,
             de.entregado_en,
             ee.codigo
@@ -903,6 +938,7 @@ def resolver_novedad_pedido(
                 "firmanombre = coalesce(:firma_nombre, firmanombre), "
                 "firmadocumento = coalesce(:firma_documento, firmadocumento), "
                 "firmaimagenurl = coalesce(:firma_imagen_url, firmaimagenurl), "
+                "motivonoentregado = null, "
                 "observaciones = coalesce(:observaciones, observaciones), "
                 "updatedat = timezone('America/Bogota', now())"
             )
@@ -921,8 +957,16 @@ def resolver_novedad_pedido(
                 "domiciliarioid = null, "
                 "fechaasignacion = null, "
                 "fechasalida = null, "
+                "fechaentrega = null, "
+                "motivonoentregado = null, "
+                "evidenciafotourl = null, "
+                "firmanombre = null, "
+                "firmadocumento = null, "
+                "firmaimagenurl = null, "
+                "observaciones = coalesce(:observaciones, observaciones), "
                 "updatedat = timezone('America/Bogota', now())"
             )
+            update_entrega_params["observaciones"] = observaciones
         elif nuevo_estado_pedido == "asignado":
             update_entrega_sql = (
                 "estadoentregaid = :estado_destino_id, "
@@ -937,6 +981,12 @@ def resolver_novedad_pedido(
                 "domiciliarioid = :domiciliario_id, "
                 "fechaasignacion = coalesce(fechaasignacion, timezone('America/Bogota', now())), "
                 "fechasalida = coalesce(fechasalida, timezone('America/Bogota', now())), "
+                "fechaentrega = null, "
+                "motivonoentregado = null, "
+                "evidenciafotourl = null, "
+                "firmanombre = null, "
+                "firmadocumento = null, "
+                "firmaimagenurl = null, "
                 "updatedat = timezone('America/Bogota', now())"
             )
 
