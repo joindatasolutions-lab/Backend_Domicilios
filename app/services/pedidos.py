@@ -214,7 +214,7 @@ def listar_pedidos_disponibles(
             and p.numero_pedido is not null
             and e.domiciliarioid is null
             and ee.codigo = 'pendiente'
-            and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
+            and lower(regexp_replace(trim(ep.nombre_estado), '\s+', '', 'g')) in ('paraentrega', 'paraentregar')
             and coalesce(e.fechaentregaprogramada, e.fechaentrega)::date = :fecha
             and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
@@ -1136,7 +1136,7 @@ def asignar_pedido_a_domiciliario(
                 and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
                 and e.domiciliarioid is null
                 and ee.codigo = 'pendiente'
-                and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
+                and lower(regexp_replace(trim(ep.nombre_estado), '\s+', '', 'g')) in ('paraentrega', 'paraentregar')
                 and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
                 and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             for update of e
