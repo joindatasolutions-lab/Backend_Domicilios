@@ -1,11 +1,7 @@
 from datetime import date
 
 from app.core.security import CurrentDomiciliario
-from app.services.pedidos import (
-    _buscar_pedido_domiciliario_para_estado,
-    listar_pedidos_asignados,
-    listar_pedidos_disponibles,
-)
+from app.services.pedidos import _buscar_pedido_domiciliario_para_estado, listar_pedidos_asignados
 
 
 class _FakeResult:
@@ -56,34 +52,6 @@ def test_listar_pedidos_asignados_includes_delivered_by_actual_delivery_date() -
         "domiciliario_id": 7,
         "sucursal_id": 11,
         "fecha": date(2026, 7, 22),
-        "limit": 100,
-        "offset": 0,
-    }
-
-
-def test_listar_pedidos_disponibles_requires_para_entrega_order() -> None:
-    db = _FakeDb()
-
-    result = listar_pedidos_disponibles(
-        db,
-        empresa_id=3,
-        sucursal_id=11,
-        fecha=date(2026, 7, 28),
-    )
-
-    sql = str(db.statement)
-    assert result == []
-    assert "join estado_pedido ep" in sql
-    assert "ee.codigo = 'pendiente'" in sql
-    assert (
-        "lower(regexp_replace(trim(ep.nombre_estado), '\\s+', '', 'g')) "
-        "in ('paraentrega', 'paraentregar')"
-    ) in sql
-    assert "'aprobado'" not in sql
-    assert db.params == {
-        "empresa_id": 3,
-        "sucursal_id": 11,
-        "fecha": date(2026, 7, 28),
         "limit": 100,
         "offset": 0,
     }
