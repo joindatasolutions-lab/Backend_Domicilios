@@ -228,6 +228,12 @@ def listar_pedidos_disponibles(
                                 e.produccionid is null
                                 and prod.pedido_id = p.id_pedido
                             )
+                            or prod.pedido_detalle_id in (
+                                select pd_prod.id_pedido_detalle
+                                from pedido_detalle pd_prod
+                                where pd_prod.empresa_id = p.empresa_id
+                                    and pd_prod.pedido_id = p.id_pedido
+                            )
                         )
                         and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
                             in ('paraentrega', 'paraentregar')
@@ -1169,6 +1175,12 @@ def asignar_pedido_a_domiciliario(
                                 or (
                                     e.produccionid is null
                                     and prod.pedido_id = p.id_pedido
+                                )
+                                or prod.pedido_detalle_id in (
+                                    select pd_prod.id_pedido_detalle
+                                    from pedido_detalle pd_prod
+                                    where pd_prod.empresa_id = p.empresa_id
+                                        and pd_prod.pedido_id = p.id_pedido
                                 )
                             )
                             and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
