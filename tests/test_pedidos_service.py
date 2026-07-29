@@ -61,7 +61,7 @@ def test_listar_pedidos_asignados_includes_delivered_by_actual_delivery_date() -
     }
 
 
-def test_listar_pedidos_disponibles_requires_para_entrega_production_state() -> None:
+def test_listar_pedidos_disponibles_requires_para_entrega_order() -> None:
     db = _FakeDb()
 
     result = listar_pedidos_disponibles(
@@ -75,14 +75,10 @@ def test_listar_pedidos_disponibles_requires_para_entrega_production_state() -> 
     assert result == []
     assert "join estado_pedido ep" in sql
     assert "ee.codigo = 'pendiente'" in sql
-    assert "from produccion prod" in sql
-    assert "join estado_produccion eprod" in sql
-    assert "prod.id_produccion = e.produccionid" in sql
-    assert "prod.pedido_id = p.id_pedido" in sql
     assert (
-        "lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\\s+', '', 'g'))"
+        "lower(regexp_replace(trim(ep.nombre_estado), '\\s+', '', 'g')) "
+        "in ('paraentrega', 'paraentregar')"
     ) in sql
-    assert "in ('paraentrega', 'paraentregar')" in sql
     assert "'aprobado'" not in sql
     assert db.params == {
         "empresa_id": 3,
