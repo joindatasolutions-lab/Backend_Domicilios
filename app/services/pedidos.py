@@ -218,7 +218,7 @@ def listar_pedidos_disponibles(
             and e.domiciliarioid is null
             and ee.codigo = 'pendiente'
             and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
-                in ('paraentrega', 'paraentregar')
+                in ('paraentrega', 'paraentregar', 'terminado')
             and coalesce(e.fechaentregaprogramada, e.fechaentrega)::date = :fecha
             and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
@@ -1144,7 +1144,7 @@ def asignar_pedido_a_domiciliario(
                 and e.domiciliarioid is null
                 and ee.codigo = 'pendiente'
                 and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
-                    in ('paraentrega', 'paraentregar')
+                    in ('paraentrega', 'paraentregar', 'terminado')
                 and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
                 and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             for update of e
