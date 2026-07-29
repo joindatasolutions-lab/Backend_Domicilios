@@ -1,7 +1,11 @@
 from datetime import date
 
 from app.core.security import CurrentDomiciliario
-from app.services.pedidos import _buscar_pedido_domiciliario_para_estado, listar_pedidos_asignados
+from app.services.pedidos import (
+    _buscar_pedido_domiciliario_para_estado,
+    listar_pedidos_asignados,
+    listar_pedidos_disponibles,
+)
 
 
 class _FakeResult:
@@ -52,6 +56,38 @@ def test_listar_pedidos_asignados_includes_delivered_by_actual_delivery_date() -
         "domiciliario_id": 7,
         "sucursal_id": 11,
         "fecha": date(2026, 7, 22),
+        "limit": 100,
+        "offset": 0,
+    }
+
+
+def test_listar_pedidos_disponibles_requires_para_entrega_production_state() -> None:
+    db = _FakeDb()
+
+    result = listar_pedidos_disponibles(
+        db,
+        empresa_id=3,
+        sucursal_id=11,
+        fecha=date(2026, 7, 28),
+    )
+
+    sql = str(db.statement)
+    assert result == []
+    assert "from entrega e" in sql
+    assert "join produccion prod" in sql
+    assert "on prod.id_produccion = e.produccionid" in sql
+    assert "join estado_produccion eprod" in sql
+    assert "join estado_pedido ep" not in sql
+    assert "ee.codigo = 'pendiente'" in sql
+    assert (
+        "lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\\s+', '', 'g'))"
+    ) in sql
+    assert "in ('paraentrega', 'paraentregar')" in sql
+    assert "'aprobado'" not in sql
+    assert db.params == {
+        "empresa_id": 3,
+        "sucursal_id": 11,
+        "fecha": date(2026, 7, 28),
         "limit": 100,
         "offset": 0,
     }

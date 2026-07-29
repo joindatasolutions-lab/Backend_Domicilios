@@ -190,9 +190,14 @@ def listar_pedidos_disponibles(
             to_char(e.fechasalida, 'HH24:MI') as hora_en_ruta,
             to_char(e.fechaentrega, 'HH24:MI') as hora_entregado
         from entrega e
+        join produccion prod
+            on prod.id_produccion = e.produccionid
+            and prod.empresa_id = e.empresa_id
+        join estado_produccion eprod
+            on eprod.id_estado_produccion = prod.estado_produccion_id
         join pedido p
-            on p.id_pedido = e.pedido_id
-            and p.empresa_id = e.empresa_id
+            on p.id_pedido = prod.pedido_id
+            and p.empresa_id = prod.empresa_id
         left join barrio b
             on b.id_barrio = e.barrioid
             and b.empresa_id = e.empresa_id
@@ -207,14 +212,13 @@ def listar_pedidos_disponibles(
             and ps.sucursal_id = pd.sucursal_id
         join estado_entrega ee
             on ee.id_estado_entrega = e.estadoentregaid
-        join estado_pedido ep
-            on ep.id_estado_pedido = p.estado_pedido_id
         where e.empresa_id = :empresa_id
-            and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
+            and (cast(:sucursal_id as bigint) is null or prod.sucursal_id = cast(:sucursal_id as bigint))
             and p.numero_pedido is not null
             and e.domiciliarioid is null
             and ee.codigo = 'pendiente'
-            and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
+            and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
+                in ('paraentrega', 'paraentregar')
             and coalesce(e.fechaentregaprogramada, e.fechaentrega)::date = :fecha
             and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
@@ -1119,24 +1123,28 @@ def asignar_pedido_a_domiciliario(
             select
                 p.id_pedido,
                 p.numero_pedido,
-                p.sucursal_id,
+                prod.sucursal_id,
                 e.id_entrega,
                 e.estadoentregaid,
                 ee.codigo as estado_actual
-            from pedido p
-            join entrega e
-                on e.pedido_id = p.id_pedido
-                and e.empresa_id = p.empresa_id
+            from entrega e
+            join produccion prod
+                on prod.id_produccion = e.produccionid
+                and prod.empresa_id = e.empresa_id
+            join estado_produccion eprod
+                on eprod.id_estado_produccion = prod.estado_produccion_id
+            join pedido p
+                on p.id_pedido = prod.pedido_id
+                and p.empresa_id = prod.empresa_id
             join estado_entrega ee
                 on ee.id_estado_entrega = e.estadoentregaid
-            join estado_pedido ep
-                on ep.id_estado_pedido = p.estado_pedido_id
             where p.empresa_id = :empresa_id
                 and p.numero_pedido = :numero_pedido
-                and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
+                and (cast(:sucursal_id as bigint) is null or prod.sucursal_id = cast(:sucursal_id as bigint))
                 and e.domiciliarioid is null
                 and ee.codigo = 'pendiente'
-                and lower(regexp_replace(trim(ep.nombre_estado), '\s+', ' ', 'g')) = 'aprobado'
+                and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
+                    in ('paraentrega', 'paraentregar')
                 and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
                 and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             for update of e
