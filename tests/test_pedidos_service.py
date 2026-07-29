@@ -73,14 +73,14 @@ def test_listar_pedidos_disponibles_requires_para_entrega_production_state() -> 
 
     sql = str(db.statement)
     assert result == []
-    assert "join estado_pedido ep" not in sql
-    assert "from entrega e" in sql
-    assert "join produccion prod" in sql
-    assert "on prod.id_produccion = e.produccionid" in sql
-    assert "join pedido p" in sql
-    assert "p.id_pedido = coalesce(prod.pedido_id, pd_link.pedido_id)" in sql
+    assert "join estado_pedido ep" in sql
     assert "ee.codigo = 'pendiente'" in sql
+    assert "from produccion prod" in sql
     assert "join estado_produccion eprod" in sql
+    assert "prod.id_produccion = e.produccionid" in sql
+    assert "prod.pedido_id = p.id_pedido" in sql
+    assert "prod.pedido_detalle_id in" in sql
+    assert "from pedido_detalle pd_prod" in sql
     assert (
         "lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\\s+', '', 'g'))"
     ) in sql
