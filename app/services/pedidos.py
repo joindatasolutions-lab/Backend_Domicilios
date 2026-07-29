@@ -214,7 +214,27 @@ def listar_pedidos_disponibles(
             and p.numero_pedido is not null
             and e.domiciliarioid is null
             and ee.codigo = 'pendiente'
-            and lower(regexp_replace(trim(ep.nombre_estado), '\s+', '', 'g')) in ('paraentrega', 'paraentregar')
+            and (
+                exists (
+                    select 1
+                    from produccion prod
+                    join estado_produccion eprod
+                        on eprod.id_estado_produccion = prod.estado_produccion_id
+                    where prod.empresa_id = e.empresa_id
+                        and prod.sucursal_id = p.sucursal_id
+                        and (
+                            prod.id_produccion = e.produccionid
+                            or (
+                                e.produccionid is null
+                                and prod.pedido_id = p.id_pedido
+                            )
+                        )
+                        and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
+                            in ('paraentrega', 'paraentregar')
+                )
+                or lower(regexp_replace(trim(ep.nombre_estado), '\s+', '', 'g'))
+                    in ('paraentrega', 'paraentregar')
+            )
             and coalesce(e.fechaentregaprogramada, e.fechaentrega)::date = :fecha
             and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
@@ -1136,7 +1156,27 @@ def asignar_pedido_a_domiciliario(
                 and (cast(:sucursal_id as bigint) is null or p.sucursal_id = cast(:sucursal_id as bigint))
                 and e.domiciliarioid is null
                 and ee.codigo = 'pendiente'
-                and lower(regexp_replace(trim(ep.nombre_estado), '\s+', '', 'g')) in ('paraentrega', 'paraentregar')
+                and (
+                    exists (
+                        select 1
+                        from produccion prod
+                        join estado_produccion eprod
+                            on eprod.id_estado_produccion = prod.estado_produccion_id
+                        where prod.empresa_id = e.empresa_id
+                            and prod.sucursal_id = p.sucursal_id
+                            and (
+                                prod.id_produccion = e.produccionid
+                                or (
+                                    e.produccionid is null
+                                    and prod.pedido_id = p.id_pedido
+                                )
+                            )
+                            and lower(regexp_replace(trim(coalesce(eprod.codigo, eprod.nombre, '')), '\s+', '', 'g'))
+                                in ('paraentrega', 'paraentregar')
+                    )
+                    or lower(regexp_replace(trim(ep.nombre_estado), '\s+', '', 'g'))
+                        in ('paraentrega', 'paraentregar')
+                )
                 and lower(regexp_replace(trim(coalesce(e.direccion, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
                 and lower(regexp_replace(trim(coalesce(e.barrionombre, '')), '\s+', ' ', 'g')) <> 'recoger en tienda'
             for update of e
