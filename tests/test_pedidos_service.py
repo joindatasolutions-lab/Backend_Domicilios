@@ -3,6 +3,7 @@ from datetime import date
 from app.core.security import CurrentDomiciliario
 from app.services.pedidos import (
     _buscar_pedido_domiciliario_para_estado,
+    listar_historial_pedidos,
     listar_pedidos_asignados,
     listar_pedidos_disponibles,
 )
@@ -120,4 +121,33 @@ def test_buscar_pedido_domiciliario_para_estado_requires_approved_order() -> Non
         "domiciliario_id": 7,
         "estado_origen": "asignado",
         "sucursal_id": 11,
+    }
+
+
+def test_listar_historial_pedidos_exposes_programmed_and_actual_delivery_dates() -> None:
+    db = _FakeDb()
+    domiciliario = CurrentDomiciliario(
+        id_empleado=66,
+        empresa_id=3,
+        sucursal_id=3,
+        usuario="ehernandez",
+        cargo="domiciliario",
+    )
+
+    result = listar_historial_pedidos(db, domiciliario=domiciliario)
+
+    sql = str(db.statement)
+    assert result == []
+    assert "e.fechaentregaprogramada::date as fecha_entrega_programada" in sql
+    assert "end as fecha_entrega_real" in sql
+    assert "end as fecha_entrega" in sql
+    assert db.params == {
+        "empresa_id": 3,
+        "domiciliario_id": 66,
+        "sucursal_id": 3,
+        "fecha_desde": None,
+        "fecha_hasta": None,
+        "q": None,
+        "limit": 100,
+        "offset": 0,
     }

@@ -445,6 +445,15 @@ def listar_historial_pedidos(
                 b.zona_id::text as zona,
                 coalesce(e.fechaasignacion, da.asignado_en) as fecha_asignacion,
                 coalesce(e.fechaasignacion, da.asignado_en) as asignado_en,
+                e.fechaentregaprogramada::date as fecha_entrega_programada,
+                case
+                    when lua.accion = 'DEVOLVER_DOMICILIO'
+                        then lua.created_at
+                    when ee.codigo = 'entregado'
+                        then coalesce(e.fechaentrega, de.entregado_en, lua.created_at)
+                    when ee.codigo in ('no_entregado', 'cancelado', 'cancelada')
+                        then coalesce(lua.created_at, e.updatedat)
+                end as fecha_entrega_real,
                 case
                     when lua.accion = 'DEVOLVER_DOMICILIO'
                         then lua.created_at
@@ -587,6 +596,7 @@ def listar_historial_pedidos(
                 b.nombre_barrio,
                 b.zona_id,
                 e.fechaasignacion,
+                e.fechaentregaprogramada,
                 e.fechaentrega,
                 e.updatedat,
                 e.createdat,

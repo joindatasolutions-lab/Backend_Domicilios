@@ -47,6 +47,8 @@ class PedidoHistorial(BaseModel):
     barrio: str | None
     zona: str | None
     fecha_asignacion: datetime | None = None
+    fecha_entrega_programada: date | None = None
+    fecha_entrega_real: datetime | None = None
     fecha_entrega: datetime | None = None
     asignado_en: datetime | None = None
     entregado_en: datetime | None = None
