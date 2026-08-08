@@ -156,6 +156,8 @@ class PedidoEntregadoRequest(BaseModel):
     firma_documento: str | None = None
     firma_imagen_url: str | None = None
     evidencia_foto_url: str | None = None
+    latitud_entrega: float | None = Field(default=None, alias="latitudEntrega")
+    longitud_entrega: float | None = Field(default=None, alias="longitudEntrega")
     observaciones: str | None = None
 
 
