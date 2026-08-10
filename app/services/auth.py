@@ -28,6 +28,14 @@ def _tenant_identity(row) -> dict:
     }
 
 
+def _normalizar_tipo_domiciliario(tipo: str | None) -> str:
+    return (tipo or "interno").strip().lower()
+
+
+def _es_domiciliario_externo(tipo: str | None) -> bool:
+    return _normalizar_tipo_domiciliario(tipo) == "externo"
+
+
 def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> dict:
     query = text(
         """
@@ -40,6 +48,7 @@ def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> di
             u.login as usuario,
             u.email,
             e.cargo,
+            e.tipo as tipo_domiciliario,
             e.foto_url,
             u.passwordhash,
             emp.nombre_empresa as tenant_nombre,
@@ -106,6 +115,8 @@ def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> di
     except SQLAlchemyError:
         db.rollback()
 
+    es_externo = _es_domiciliario_externo(row["tipo_domiciliario"])
+    tipo_domiciliario = _normalizar_tipo_domiciliario(row["tipo_domiciliario"])
     domiciliario = {
         "id_empleado": row["id_empleado"],
         "empresa_id": row["empresa_id"],
@@ -116,6 +127,8 @@ def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> di
         "usuario": row["usuario"],
         "email": row["email"],
         "cargo": row["cargo"],
+        "es_externo": es_externo,
+        "tipo_domiciliario": tipo_domiciliario,
         "foto_url": row["foto_url"],
     }
     access_token = create_access_token(
@@ -126,6 +139,8 @@ def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> di
             "usuario": row["usuario"] or row["email"] or str(row["id_empleado"]),
             "cargo": row["cargo"],
             "tipo": "domiciliario",
+            "es_externo": es_externo,
+            "tipo_domiciliario": tipo_domiciliario,
         },
     )
 
@@ -149,6 +164,7 @@ def obtener_perfil_domiciliario(db: Session, domiciliario: CurrentDomiciliario) 
                 u.login as usuario,
                 u.email,
                 e.cargo,
+                e.tipo as tipo_domiciliario,
                 e.foto_url,
                 emp.nombre_empresa as tenant_nombre,
                 emp.nombre_comercial as tenant_nombre_comercial,
@@ -177,7 +193,11 @@ def obtener_perfil_domiciliario(db: Session, domiciliario: CurrentDomiciliario) 
             detail="Domiciliario no encontrado",
         )
     perfil = dict(row)
+    es_externo = _es_domiciliario_externo(perfil["tipo_domiciliario"])
+    tipo_domiciliario = _normalizar_tipo_domiciliario(perfil["tipo_domiciliario"])
     perfil["tenant"] = _tenant_identity(perfil)
+    perfil["es_externo"] = es_externo
+    perfil["tipo_domiciliario"] = tipo_domiciliario
     perfil.pop("tenant_nombre")
     perfil.pop("tenant_nombre_comercial")
     perfil.pop("tenant_slug")

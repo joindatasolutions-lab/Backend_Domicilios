@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.auth import _es_domiciliario_externo, _normalizar_tipo_domiciliario
 
 
 client = TestClient(app)
@@ -24,6 +25,13 @@ def test_login_preflight_allows_local_vite_origin() -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5174"
+
+
+def test_login_external_delivery_user_flag() -> None:
+    assert _es_domiciliario_externo("Externo") is True
+    assert _normalizar_tipo_domiciliario("Externo") == "externo"
+    assert _es_domiciliario_externo("Interno") is False
+    assert _normalizar_tipo_domiciliario("Interno") == "interno"
 
 
 def test_perfil_domiciliario_requires_token() -> None:

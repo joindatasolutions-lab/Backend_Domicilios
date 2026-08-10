@@ -26,6 +26,8 @@ class DomiciliarioAuthData(BaseModel):
     usuario: str | None
     email: str | None
     cargo: str
+    es_externo: bool = False
+    tipo_domiciliario: str = "interno"
     foto_url: str | None = None
 
 
