@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     db_password: str
     db_cloud_sql_instance: str | None = Field(default=None, alias="DB_CLOUD_SQL_INSTANCE")
     db_connect_timeout: int = Field(default=3, alias="DB_CONNECT_TIMEOUT")
-    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
+    db_pool_size: int = Field(default=3, alias="DB_POOL_SIZE")
     db_max_overflow: int = Field(default=2, alias="DB_MAX_OVERFLOW")
     db_pool_recycle: int = Field(default=1800, alias="DB_POOL_RECYCLE")
     db_pool_timeout: int = Field(default=30, alias="DB_POOL_TIMEOUT")
