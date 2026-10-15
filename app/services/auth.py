@@ -64,7 +64,7 @@ def login_domiciliario(db: Session, credentials: DomiciliarioLoginRequest) -> di
             and (cast(:sucursal_id as bigint) is null or e.sucursal_id = cast(:sucursal_id as bigint))
             and lower(u.estado) = 'activo'
             and e.activo = 1
-            and lower(e.cargo) = 'domiciliario'
+            and lower(trim(e.cargo)) = 'domiciliario'
             and (
                 lower(u.login) = lower(:usuario)
                 or lower(u.email) = lower(:usuario)
@@ -177,7 +177,7 @@ def obtener_perfil_domiciliario(db: Session, domiciliario: CurrentDomiciliario) 
                 and e.empresa_id = :empresa_id
                 and e.activo = 1
                 and lower(u.estado) = 'activo'
-                and lower(e.cargo) = 'domiciliario'
+                and lower(trim(e.cargo)) = 'domiciliario'
             limit 1
             """
         ),
@@ -431,7 +431,7 @@ def actualizar_foto_domiciliario(
                 where id_empleado = :id_empleado
                     and empresa_id = :empresa_id
                     and activo = 1
-                    and lower(cargo) = 'domiciliario'
+                    and lower(trim(cargo)) = 'domiciliario'
                 returning
                     id_empleado,
                     empresa_id,

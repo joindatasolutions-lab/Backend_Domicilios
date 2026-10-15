@@ -110,3 +110,69 @@ def subir_foto_empleado(
         ) from exc
 
     return s3_key, construir_url_publica_s3(s3_key)
+
+
+def subir_foto_novedad_pedido(
+    *,
+    tenant_slug: str,
+    numero_pedido: int,
+    file: UploadFile,
+) -> tuple[str, str]:
+    return _subir_imagen_pedido(
+        tenant_slug=tenant_slug, numero_pedido=numero_pedido, file=file,
+        carpeta="novedades", tipo="evidencia",
+    )
+
+
+def subir_evidencia_entrega_pedido(
+    *, tenant_slug: str, numero_pedido: int, file: UploadFile, tipo: str,
+) -> tuple[str, str]:
+    if tipo not in {"foto", "firma"}:
+        raise ValueError("Tipo de evidencia de entrega invalido")
+    return _subir_imagen_pedido(
+        tenant_slug=tenant_slug, numero_pedido=numero_pedido, file=file,
+        carpeta="entrega", tipo=tipo,
+    )
+
+
+def _subir_imagen_pedido(
+    *, tenant_slug: str, numero_pedido: int, file: UploadFile,
+    carpeta: str, tipo: str,
+) -> tuple[str, str]:
+    extension = _extension_imagen(file)
+    s3_key = (
+        f"tenants/{tenant_slug}/domicilios/pedidos/"
+        f"{numero_pedido}/{carpeta}/{tipo}-{uuid4().hex}{extension}"
+    )
+
+    try:
+        file.file.seek(0)
+        put_kwargs = {
+            "Bucket": settings.aws_s3_bucket,
+            "Key": s3_key,
+            "Body": file.file.read(),
+            "ContentType": file.content_type or "application/octet-stream",
+        }
+        if settings.aws_s3_object_acl:
+            put_kwargs["ACL"] = settings.aws_s3_object_acl
+
+        _s3_client().put_object(
+            **put_kwargs,
+        )
+    except (NoCredentialsError, PartialCredentialsError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Credenciales AWS no configuradas para subir la foto a S3",
+        ) from exc
+    except (BotoCoreError, ClientError) as exc:
+        error_code = None
+        if isinstance(exc, ClientError):
+            error_code = exc.response.get("Error", {}).get("Code")
+        if not error_code:
+            error_code = type(exc).__name__
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"No se pudo subir la foto a S3{f' ({error_code})' if error_code else ''}",
+        ) from exc
+
+    return s3_key, construir_url_publica_s3(s3_key)

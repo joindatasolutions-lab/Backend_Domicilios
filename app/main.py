@@ -1,8 +1,15 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -20,6 +27,22 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def sqlalchemy_exception_handler(
+        request: Request,
+        exc: SQLAlchemyError,
+    ) -> JSONResponse:
+        logger.exception(
+            "Database error while handling %s %s against %s",
+            request.method,
+            request.url.path,
+            settings.database_connection_target,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "No se pudo conectar con la base de datos"},
+        )
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

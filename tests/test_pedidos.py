@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
+from app.db.session import get_db
 from app.main import app
 
 
@@ -16,6 +18,28 @@ def test_pedidos_disponibles_validates_date_format() -> None:
     response = client.get("/api/v1/pedidos/disponibles?empresa_id=3&fecha=no-es-fecha")
 
     assert response.status_code == 422
+
+
+def test_pedidos_disponibles_database_error_keeps_cors_headers() -> None:
+    class UnavailableDb:
+        def execute(self, *args, **kwargs) -> None:
+            raise SQLAlchemyError("connection timeout expired")
+
+    def override_get_db():
+        yield UnavailableDb()
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        response = client.get(
+            "/api/v1/pedidos/disponibles?empresa_id=2&sucursal_id=2",
+            headers={"Origin": "http://127.0.0.1:5173"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert response.json()["detail"] == "No se pudo conectar con la base de datos"
 
 
 def test_asignarme_requires_token() -> None:
